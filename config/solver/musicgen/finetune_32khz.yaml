@@ -1,0 +1,121 @@
+# @package __global__
+
+# Finetuning configuration for MusicGen model
+# This configuration is designed for finetuning a pretrained MusicGen model
+# on custom music data at 32 kHz
+
+defaults:
+  - musicgen/default
+  - /model: lm/musicgen_lm
+  - override /dset: audio/default
+  - _self_
+
+# Use automatic mixed precision for faster training
+autocast: true
+autocast_dtype: float16
+
+# Use pretrained EnCodec model (32kHz, trained on music)
+# This is the encoder that will tokenize your audio
+compression_model_checkpoint: //pretrained/facebook/encodec_32khz
+
+# Audio settings
+channels: 1  # mono audio (set to 2 for stereo)
+sample_rate: 32000
+
+# Deadlock detection for distributed training
+deadlock:
+  use: true
+
+# Dataset configuration
+dataset:
+  batch_size: 8  # Adjust based on your GPU memory (start small)
+  num_workers: 10
+  segment_duration: 30  # Duration of audio segments in seconds
+  sample_on_weight: false  # Uniform sampling
+  sample_on_duration: false  # Uniform sampling
+  train:
+    num_samples: 1000  # Number of samples per epoch (adjust as needed)
+  valid:
+    num_samples: 100  # Number of validation samples
+  generate:
+    num_samples: 5  # Number of samples to generate during evaluation
+    batch_size: 2
+
+# Generation parameters
+generate:
+  every: 5  # Generate samples every N epochs
+  num_workers: 5
+  audio:
+    format: wav
+    strategy: loudness  # or 'peak', 'clip', 'rms'
+  lm:
+    use_sampling: true
+    top_k: 250
+    top_p: 0.0
+    temperature: 1.0
+    cfg_coef: 3.0  # Classifier-free guidance coefficient
+
+# Evaluation settings
+evaluate:
+  every: 5  # Evaluate every N epochs
+  num_workers: 5
+  metrics:
+    base: true  # Compute perplexity and cross-entropy
+    # Optional: Enable additional metrics (requires extra dependencies)
+    fad: false  # Fréchet Audio Distance
+    kld: false  # KL Divergence
+    text_consistency: false
+    chroma_cosine: false
+
+# Optimizer configuration
+optim:
+  epochs: 100  # Total number of epochs
+  updates_per_epoch: 100  # Number of gradient updates per epoch
+  optimizer: adamw
+  lr: 1e-4  # Learning rate (lower for finetuning)
+  ema:
+    use: true  # Use exponential moving average
+    updates: 10
+    device: ${device}
+  adam:
+    betas: [0.9, 0.95]
+    eps: 1e-8
+    weight_decay: 0.1
+
+# Learning rate scheduler
+schedule:
+  lr_scheduler: cosine
+  cosine:
+    warmup: 500  # Warmup steps
+    lr_min_ratio: 0.0
+    cycle_length: 1.0
+
+# Checkpoint configuration
+checkpoint:
+  save_last: true
+  save_every: 10  # Save checkpoint every N epochs
+  keep_last: 5  # Keep last N checkpoints
+  keep_every_states: null
+
+# Logging
+logging:
+  log_interval: 10  # Log every N steps
+  log_tensorboard: true
+  log_updates: 10
+
+# Conditioner configuration (text conditioning)
+conditioner: text2music
+
+conditioners:
+  args:
+    merge_text_conditions_p: 0.25  # Probability of merging text conditions
+    drop_desc_p: 0.1  # Probability of dropping description (for classifier-free guidance)
+  
+  description:
+    model: t5
+    t5:
+      name: t5-base  # Use t5-base for better quality (or t5-small for faster training)
+      finetune: false  # Don't finetune T5
+      normalize_text: false
+      word_dropout: 0.0
+      autocast_dtype: float16
