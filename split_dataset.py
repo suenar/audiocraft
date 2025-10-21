@@ -3,6 +3,7 @@
 Script to split audio files into train/validation/test sets based on composer and opus number.
 Ensures that each piece (composer + opus) appears only in one set.
 Split ratio: 80% train, 10% validation, 10% test
+Converts mp3 files to wav format.
 """
 
 import os
@@ -10,6 +11,8 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 import random
+import subprocess
+import sys
 
 
 def parse_filename(filename):
@@ -89,16 +92,46 @@ def split_pieces(pieces, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
     return train_files, val_files, test_files
 
 
-def organize_files(train_files, val_files, test_files, source_dir='.', copy=True):
+def convert_mp3_to_wav(input_path, output_path):
     """
-    Organize files into train/val/test directories.
+    Convert mp3 file to wav format using ffmpeg.
+    
+    Args:
+        input_path: path to input mp3 file
+        output_path: path to output wav file
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Use ffmpeg to convert mp3 to wav
+        subprocess.run(
+            ['ffmpeg', '-i', str(input_path), '-acodec', 'pcm_s16le', '-ar', '44100', str(output_path)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error converting {input_path}: {e}")
+        return False
+    except FileNotFoundError:
+        print("Error: ffmpeg not found. Please install ffmpeg to convert audio files.")
+        print("On Ubuntu/Debian: sudo apt-get install ffmpeg")
+        print("On macOS: brew install ffmpeg")
+        sys.exit(1)
+
+
+def organize_files(train_files, val_files, test_files, source_dir='.', convert_to_wav=True):
+    """
+    Organize files into train/val/test directories and optionally convert to wav.
     
     Args:
         train_files: list of filenames for training set
         val_files: list of filenames for validation set
         test_files: list of filenames for test set
         source_dir: source directory containing the files
-        copy: if True, copy files; if False, move files
+        convert_to_wav: if True, convert mp3 to wav format
     """
     # Create directories
     train_dir = Path('train')
@@ -109,32 +142,47 @@ def organize_files(train_files, val_files, test_files, source_dir='.', copy=True
     val_dir.mkdir(exist_ok=True)
     test_dir.mkdir(exist_ok=True)
     
-    # Function to copy or move files
-    transfer_func = shutil.copy2 if copy else shutil.move
-    
     # Organize training files
     print(f"Organizing {len(train_files)} files into train directory...")
-    for filename in train_files:
+    for i, filename in enumerate(train_files, 1):
         src = Path(source_dir) / filename
-        dst = train_dir / filename
         if src.exists():
-            transfer_func(str(src), str(dst))
+            if convert_to_wav:
+                dst = train_dir / filename.replace('.mp3', '.wav')
+                if i % 10 == 0 or i == len(train_files):
+                    print(f"  Converting train files: {i}/{len(train_files)}")
+                convert_mp3_to_wav(src, dst)
+            else:
+                dst = train_dir / filename
+                shutil.copy2(str(src), str(dst))
     
     # Organize validation files
     print(f"Organizing {len(val_files)} files into val directory...")
-    for filename in val_files:
+    for i, filename in enumerate(val_files, 1):
         src = Path(source_dir) / filename
-        dst = val_dir / filename
         if src.exists():
-            transfer_func(str(src), str(dst))
+            if convert_to_wav:
+                dst = val_dir / filename.replace('.mp3', '.wav')
+                if i % 10 == 0 or i == len(val_files):
+                    print(f"  Converting val files: {i}/{len(val_files)}")
+                convert_mp3_to_wav(src, dst)
+            else:
+                dst = val_dir / filename
+                shutil.copy2(str(src), str(dst))
     
     # Organize test files
     print(f"Organizing {len(test_files)} files into test directory...")
-    for filename in test_files:
+    for i, filename in enumerate(test_files, 1):
         src = Path(source_dir) / filename
-        dst = test_dir / filename
         if src.exists():
-            transfer_func(str(src), str(dst))
+            if convert_to_wav:
+                dst = test_dir / filename.replace('.mp3', '.wav')
+                if i % 10 == 0 or i == len(test_files):
+                    print(f"  Converting test files: {i}/{len(test_files)}")
+                convert_mp3_to_wav(src, dst)
+            else:
+                dst = test_dir / filename
+                shutil.copy2(str(src), str(dst))
 
 
 def main():
@@ -173,14 +221,14 @@ def main():
     print(f"  Val:   {len(val_files)} files from {val_piece_count} pieces ({val_piece_count/len(pieces)*100:.1f}%)")
     print(f"  Test:  {len(test_files)} files from {test_piece_count} pieces ({test_piece_count/len(pieces)*100:.1f}%)")
     
-    # Ask user whether to copy or move
-    print("\nOrganizing files into directories...")
-    print("(Files will be copied to preserve originals)")
+    # Organize and convert files
+    print("\nOrganizing and converting files to WAV format...")
+    print("(Original mp3 files will be preserved)")
     
-    # Organize files (copy by default to preserve originals)
-    organize_files(train_files, val_files, test_files, source_dir='.', copy=True)
+    # Organize files and convert to wav
+    organize_files(train_files, val_files, test_files, source_dir='.', convert_to_wav=True)
     
-    print("\n✓ Done! Files have been organized into train/, val/, and test/ directories.")
+    print("\n✓ Done! Files have been converted to WAV and organized into train/, val/, and test/ directories.")
 
 
 if __name__ == '__main__':
