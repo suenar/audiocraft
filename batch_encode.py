@@ -3,10 +3,13 @@ import torch
 import os
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 
 # Configuration
 input_dir = "/home/smg/v-sunan/VIOLIN-VALLE/egs/atepp/prompt_violin"  # Change this to your directory
-output_dir = "./reconstructed_output"  # Directory to save reconstructed files
+output_dir = "./encoding_analysis"  # Directory to save analysis results
 device = 'cuda:0'
 
 # Create output directory if it doesn't exist
@@ -72,15 +75,6 @@ for idx, wav_path in enumerate(wav_files):
             'shape': codes[0].shape,
             'original_sr': sr
         })
-        
-        # Decode and save reconstructed audio
-        with torch.no_grad():
-            reconstructed = model.decode(codes, scale)
-        
-        output_path = os.path.join(output_dir, f"reconstructed_{wav_path.name}")
-        reconstructed_cpu = reconstructed.squeeze(0).cpu()
-        torchaudio.save(output_path, reconstructed_cpu, sr)
-        print(f"  Saved reconstructed audio to: {output_path}")
         
     except Exception as e:
         print(f"  Error processing {wav_path.name}: {e}")
@@ -164,6 +158,109 @@ if len(all_codes) > 0:
             f.write(f"  Unique values: {len(torch.unique(codebook_values))}\n\n")
     
     print(f"\nStatistics saved to: {stats_file}")
+    
+    # Create visualizations
+    print("\n--- Creating Visualizations ---")
+    
+    # 1. Distribution histogram for each codebook
+    fig, axes = plt.subplots(n_codebooks, 1, figsize=(12, 3 * n_codebooks))
+    if n_codebooks == 1:
+        axes = [axes]
+    
+    for q_idx in range(n_codebooks):
+        codebook_values = torch.cat([c[q_idx].flatten() for c in codes_for_stats]).numpy()
+        axes[q_idx].hist(codebook_values, bins=50, edgecolor='black', alpha=0.7)
+        axes[q_idx].set_xlabel('Code Value')
+        axes[q_idx].set_ylabel('Frequency')
+        axes[q_idx].set_title(f'Codebook {q_idx} - Distribution of Code Values')
+        axes[q_idx].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    hist_file = os.path.join(output_dir, "code_distribution_histograms.png")
+    plt.savefig(hist_file, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"  Saved histograms to: {hist_file}")
+    
+    # 2. Value frequency bar plot for each codebook (top 20 values)
+    fig, axes = plt.subplots(n_codebooks, 1, figsize=(14, 4 * n_codebooks))
+    if n_codebooks == 1:
+        axes = [axes]
+    
+    for q_idx in range(n_codebooks):
+        codebook_values = torch.cat([c[q_idx].flatten() for c in codes_for_stats])
+        unique_vals, counts = torch.unique(codebook_values, return_counts=True)
+        top_indices = torch.argsort(counts, descending=True)[:20]
+        top_vals = unique_vals[top_indices].numpy()
+        top_counts = counts[top_indices].numpy()
+        
+        axes[q_idx].bar(range(len(top_vals)), top_counts, alpha=0.7)
+        axes[q_idx].set_xticks(range(len(top_vals)))
+        axes[q_idx].set_xticklabels([str(int(v)) for v in top_vals], rotation=45)
+        axes[q_idx].set_xlabel('Code Value')
+        axes[q_idx].set_ylabel('Frequency')
+        axes[q_idx].set_title(f'Codebook {q_idx} - Top 20 Most Frequent Code Values')
+        axes[q_idx].grid(True, alpha=0.3, axis='y')
+    
+    plt.tight_layout()
+    freq_file = os.path.join(output_dir, "code_frequency_bars.png")
+    plt.savefig(freq_file, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"  Saved frequency bars to: {freq_file}")
+    
+    # 3. Overall statistics comparison across codebooks
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    
+    codebook_means = []
+    codebook_stds = []
+    codebook_mins = []
+    codebook_maxs = []
+    
+    for q_idx in range(n_codebooks):
+        codebook_values = torch.cat([c[q_idx].flatten() for c in codes_for_stats])
+        codebook_means.append(codebook_values.float().mean().item())
+        codebook_stds.append(codebook_values.float().std().item())
+        codebook_mins.append(codebook_values.min().item())
+        codebook_maxs.append(codebook_values.max().item())
+    
+    codebook_indices = list(range(n_codebooks))
+    
+    axes[0, 0].plot(codebook_indices, codebook_means, marker='o', linewidth=2)
+    axes[0, 0].set_xlabel('Codebook Index')
+    axes[0, 0].set_ylabel('Mean Value')
+    axes[0, 0].set_title('Mean Code Value per Codebook')
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    axes[0, 1].plot(codebook_indices, codebook_stds, marker='o', linewidth=2, color='orange')
+    axes[0, 1].set_xlabel('Codebook Index')
+    axes[0, 1].set_ylabel('Std Dev')
+    axes[0, 1].set_title('Standard Deviation per Codebook')
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    axes[1, 0].plot(codebook_indices, codebook_mins, marker='o', linewidth=2, color='green', label='Min')
+    axes[1, 0].plot(codebook_indices, codebook_maxs, marker='o', linewidth=2, color='red', label='Max')
+    axes[1, 0].set_xlabel('Codebook Index')
+    axes[1, 0].set_ylabel('Value')
+    axes[1, 0].set_title('Min/Max Values per Codebook')
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    # Unique values per codebook
+    unique_counts = []
+    for q_idx in range(n_codebooks):
+        codebook_values = torch.cat([c[q_idx].flatten() for c in codes_for_stats])
+        unique_counts.append(len(torch.unique(codebook_values)))
+    
+    axes[1, 1].bar(codebook_indices, unique_counts, alpha=0.7, color='purple')
+    axes[1, 1].set_xlabel('Codebook Index')
+    axes[1, 1].set_ylabel('Number of Unique Values')
+    axes[1, 1].set_title('Codebook Utilization (Unique Values)')
+    axes[1, 1].grid(True, alpha=0.3, axis='y')
+    
+    plt.tight_layout()
+    summary_file = os.path.join(output_dir, "codebook_summary_statistics.png")
+    plt.savefig(summary_file, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"  Saved summary statistics to: {summary_file}")
 
 else:
     print("No files were successfully processed.")
