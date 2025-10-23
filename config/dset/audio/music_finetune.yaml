@@ -1,0 +1,17 @@
+# @package __global__
+
+# Dataset configuration for finetuning encodec on custom music data
+# This configuration assumes you have prepared manifest files for your music dataset
+# See ENCODEC_FINETUNING.md for instructions on preparing your data
+
+datasource:
+  max_sample_rate: 32000  # Maximum sample rate for the dataset
+  max_channels: 1         # Mono audio (set to 2 for stereo)
+
+  # Paths to manifest files for each split
+  # These should point to .jsonl or .jsonl.gz files containing dataset metadata
+  # You can use the same manifest for all splits during initial testing
+  train: egs/music_finetune/train
+  valid: egs/music_finetune/valid
+  evaluate: egs/music_finetune/valid
+  generate: egs/music_finetune/valid
