@@ -1,0 +1,6 @@
+filename,description,genre,bpm,mood,artist,title,instrument,key
+song1.mp3,"A happy upbeat electronic song with synthesizers and drums",electronic,128,happy,Example Artist,Example Song 1,synthesizer,C major
+song2.mp3,"Calm and relaxing acoustic guitar melody",acoustic,90,relaxing,Example Artist,Example Song 2,acoustic guitar,G major
+song3.mp3,"Energetic rock song with electric guitars and powerful drums",rock,140,energetic,Example Artist,Example Song 3,electric guitar,E minor
+song4.mp3,"Smooth jazz with saxophone and piano",jazz,110,smooth,Example Artist,Example Song 4,saxophone,Bb major
+song5.mp3,"Uplifting orchestral piece with strings and brass",orchestral,120,uplifting,Example Artist,Example Song 5,orchestra,D major

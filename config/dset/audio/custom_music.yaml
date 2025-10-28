@@ -1,0 +1,30 @@
+# @package __global__
+
+# Custom music dataset configuration
+# This file defines the data sources for training, validation, and evaluation
+
+datasource:
+  # Maximum sample rate to load from this dataset
+  # Audio will be resampled to this rate if higher
+  max_sample_rate: 48000
+  
+  # Maximum number of audio channels
+  max_channels: 2
+  
+  # Path to training data manifest (JSONL file)
+  # You should create this file using the instructions in the README
+  train: egs/custom_music/train
+  
+  # Path to validation data manifest
+  valid: egs/custom_music/valid
+  
+  # Path to evaluation data manifest
+  evaluate: egs/custom_music/valid
+  
+  # Path to generation data manifest (used for generating samples during training)
+  generate: egs/custom_music/valid
+
+# Optional: Specify additional dataset parameters
+# batch_size: 8  # Can be overridden in solver config
+# num_workers: 10
+# segment_duration: 30  # Duration in seconds
