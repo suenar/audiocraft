@@ -1,0 +1,3 @@
+# Requirements for MIDI filtering script
+mido>=1.3.0
+tqdm>=4.65.0
