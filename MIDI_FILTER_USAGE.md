@@ -1,6 +1,6 @@
-# GigaMIDI String Instrument Filter
+# MIDI String Instrument Filter
 
-This script filters MIDI files from the [GigaMIDI dataset](https://huggingface.co/datasets/Metacreation/GigaMIDI) to find files containing violin, viola, or cello tracks.
+This script filters MIDI files from a local directory to find files containing violin, viola, or cello tracks.
 
 ## Installation
 
@@ -13,38 +13,39 @@ pip install -r requirements_midi_filter.txt
 Or install manually:
 
 ```bash
-pip install datasets mido tqdm huggingface-hub
+pip install mido tqdm
 ```
 
 ## Usage
 
 ### Basic Usage
 
-Filter MIDI files and save them to a specific directory:
+Filter MIDI files from a local directory and save them to a specific directory:
 
 ```bash
-python filter_string_instruments.py --output-dir ./filtered_midis
+python filter_string_instruments.py --input-dir /path/to/midi/files --output-dir ./filtered_midis
 ```
 
 ### Advanced Options
 
 ```bash
 # Process only the first 1000 files (useful for testing)
-python filter_string_instruments.py --output-dir ./filtered_midis --max-files 1000
+python filter_string_instruments.py --input-dir ./midis --output-dir ./output --max-files 1000
 
-# Use a different dataset split
-python filter_string_instruments.py --output-dir ./filtered_midis --split validation
+# Non-recursive search (only top-level directory, no subdirectories)
+python filter_string_instruments.py --input-dir ./midis --output-dir ./output --no-recursive
 
-# Download entire dataset instead of streaming (faster but requires more disk space)
-python filter_string_instruments.py --output-dir ./filtered_midis --no-streaming
+# Create symlinks instead of copying files (saves disk space)
+python filter_string_instruments.py --input-dir ./midis --output-dir ./output --symlink
 ```
 
 ### Command-line Arguments
 
+- `--input-dir` (required): Directory containing MIDI files to process
 - `--output-dir` (required): Directory where filtered MIDI files will be saved
-- `--split`: Dataset split to use (default: "train")
 - `--max-files`: Maximum number of files to process (default: all files)
-- `--no-streaming`: Download entire dataset instead of streaming
+- `--no-recursive`: Do not search subdirectories recursively
+- `--symlink`: Create symlinks instead of copying files (saves disk space)
 
 ## Output Structure
 
@@ -67,65 +68,78 @@ The script searches for these MIDI program numbers:
 
 ## How It Works
 
-1. Loads the GigaMIDI dataset from Hugging Face (streaming by default)
+1. Scans the input directory for MIDI files (recursively by default)
 2. Parses each MIDI file to check for program change messages
-3. Identifies files containing the target instruments
-4. Saves matching files to the appropriate subdirectory
+3. Identifies files containing violin (program 40), viola (program 41), or cello (program 42)
+4. Copies (or symlinks) matching files to the appropriate subdirectory
 5. Prints a summary with statistics
 
 ## Example Output
 
 ```
-Loading GigaMIDI dataset (split: train)...
+Scanning for MIDI files in: /path/to/midi/files
+Recursive search: True
+Found 5000 MIDI files
 
 Filtering MIDI files for violin, viola, and cello...
 Output directory: ./filtered_midis
 ------------------------------------------------------------
-✓ [   1] symphony_no5.mid -> mixed/ (instruments: Violin, Viola, Cello)
-✓ [   2] violin_sonata.mid -> violin/ (instruments: Violin)
-Processed 100 files, found 15 matches...
+Processing MIDI files: 100%|████████████████| 5000/5000 [02:15<00:00, 36.89file/s]
+✓ [   1] symphony_no5.mid -> mixed/ (Violin, Viola, Cello)
+✓ [   2] violin_sonata.mid -> violin/ (Violin)
+✓ [   3] chamber_music.mid -> mixed/ (Violin, Cello)
 ...
 
 ============================================================
 SUMMARY
 ============================================================
-Total files processed: 1000
-Total files matched: 157
-Match rate: 15.70%
+Total files processed: 5000
+Total files matched: 782
+Total errors: 0
+Match rate: 15.64%
 
 Instrument breakdown:
-  Violin: 142
-  Viola: 89
-  Cello: 103
+  Violin: 654
+  Viola: 201
+  Cello: 389
 
 Filtered MIDI files saved to: ./filtered_midis
 ```
 
 ## Notes
 
-- The script uses streaming by default to avoid downloading the entire dataset
-- Streaming is slower but uses minimal disk space
-- Use `--no-streaming` for faster processing if you have sufficient disk space
-- You can interrupt the script with Ctrl+C and it will show results for files processed so far
-- The script handles duplicate instrument tracks (counts each MIDI file once per instrument type)
+- By default, the script searches subdirectories recursively
+- Use `--no-recursive` to only search the top-level directory
+- Use `--symlink` to create symbolic links instead of copying files (saves disk space)
+- You can interrupt the script with Ctrl+C at any time
+- The script handles duplicate filenames by adding a counter suffix
+- Files are counted once per instrument type (one file can contain multiple instruments)
 
 ## Troubleshooting
 
-### Authentication Error
+### No MIDI Files Found
 
-If you get an authentication error, you may need to login to Hugging Face:
+If the script reports no MIDI files found:
+- Check that the input directory path is correct
+- Verify that your MIDI files have `.mid` or `.midi` extensions (case insensitive)
+- Try using an absolute path instead of a relative path
 
-```bash
-huggingface-cli login
-```
+### Permission Errors
+
+If you get permission errors when copying files:
+- Check that you have read access to the input directory
+- Check that you have write access to the output directory
+- Try using `--symlink` instead of copying
 
 ### Memory Issues
 
-If you encounter memory issues, try:
-- Using streaming mode (default)
-- Processing fewer files with `--max-files`
-- Processing the dataset in batches
+If you encounter memory issues with very large MIDI files:
+- Process files in batches using `--max-files`
+- Consider filtering the input directory to process smaller subsets
 
-### Dataset Structure Changes
+### Parsing Errors
 
-If the GigaMIDI dataset structure changes, you may need to adjust the field names in the script where it accesses MIDI data (around line 105-112).
+If specific MIDI files fail to parse:
+- The script will skip corrupted files and continue processing
+- Check the error messages for specific file names
+- You may want to validate your MIDI files with a MIDI editor
